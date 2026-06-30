@@ -1,0 +1,84 @@
+# OpenUSD multithreaded `LoadUsdPhysicsFromRange` heap-corruption repro
+
+Minimal, **self-contained** reproducer for a multithreaded crash in OpenUSD's
+physics parsing (`UsdPhysics.LoadUsdPhysicsFromRange` / the
+`UsdPhysicsParsingUtility` `_FinalizeCollisionDescs<...>` TBB `parallel_for`).
+
+Triggered when a single rigid body has **many mesh colliders** beneath it and the
+stage is parsed from multiple threads. Manifests as `SIGSEGV`,
+`malloc_consolidate(): invalid chunk size`, `double free`, or
+`malloc(): unaligned tcache chunk detected`.
+
+No external assets required — the stage is generated in-memory.
+
+## TL;DR
+
+| USD runtime                     | namespace                 | multithreaded | single-thread |
+| ------------------------------- | ------------------------- | ------------- | ------------- |
+| `usd-core==25.11` (pip)         | `pxrInternal_v0_25_11`    | **CRASH 8/8** | clean         |
+| `usd-exchange==2.3.0` (pip)     | `pxrInternal_v0_25_5`     | **CRASH 12/12** | clean       |
+| Isaac Sim Kit `omni.usd.libs`   | `pxrInternal_v0_25_11`    | **CRASH 6/6** | clean         |
+| `usd-core==26.5` (pip)          | `pxrInternal_v0_26_5`     | clean (0/400) | clean         |
+
+The crash is fixed in **OpenUSD 26.05**
+([PR #4002](https://github.com/PixarAnimationStudios/OpenUSD/pull/4002),
+commit `060715faa77469b3f0e76fda4d1732f856570f88`,
+*"[usdPhysics] fix for a multithreaded crash if one rigidbody has multiple
+colliders beneath"*).
+
+The fix is **not** backported into the USD 25.x runtimes that ship with Isaac Sim
+Kit (`omni.usd.libs`) nor into the `usd-exchange` 2.3.0 wheel.
+
+## Quick start
+
+```bash
+python3 -m venv .venv && . .venv/bin/activate
+
+# vulnerable: crashes
+pip install 'usd-core==25.11'
+python repro.py            # expect SIGSEGV / malloc corruption
+
+# fixed
+pip install 'usd-core==26.5'
+python repro.py            # expect "COMPLETED"
+
+# workaround on a vulnerable runtime: force single-threaded parsing
+PXR_WORK_THREAD_LIMIT=1 python repro.py   # clean
+```
+
+Or sweep both versions automatically:
+
+```bash
+./run.sh
+```
+
+## Knobs (env vars)
+
+- `N` — number of parse iterations per run (default `50`). More iterations = higher
+  crash probability per run.
+- `COLLIDERS` — number of mesh colliders under the single rigid body (default `40`).
+  The race needs "many" (>~30) colliders under one body.
+- `PXR_WORK_THREAD_LIMIT=1` — OpenUSD knob that disables the work-thread pool;
+  serializes the parse and avoids the race (workaround).
+
+## What it does
+
+`repro.py` builds an in-memory stage with one `/World/Body` carrying
+`RigidBodyAPI`, and `COLLIDERS` child `Mesh` prims each with `CollisionAPI` +
+`MeshCollisionAPI`. It flattens the stage and calls
+`UsdPhysics.LoadUsdPhysicsFromRange(stage, ["/World"], excludePaths=[])` in a loop.
+With the default (multithreaded) work pool this races inside
+`_FinalizeCollisionDescs<UsdPhysicsMeshShapeDesc>`.
+
+## Context
+
+Originally surfaced in an Isaac Lab + Newton tablecloth workload: Newton's USD
+importer (`newton/_src/utils/import_usd.py`) calls `LoadUsdPhysicsFromRange` while
+building the scene, and the robot/cloth assets put many mesh colliders under one
+body. The crash happens before the first sim step.
+
+Because Isaac Sim Kit uses **its own bundled `omni.usd.libs`** (USD 25.11) at
+runtime — not the pip `usd-core`/`usd-exchange` wheel — the fix must land in the
+USD that Kit actually loads (`omni.usd.libs`, and `omni.usdex.libs`), either by
+backporting `060715f` into the 25.11 build or by uplifting bundled OpenUSD to
+>= 26.05.
