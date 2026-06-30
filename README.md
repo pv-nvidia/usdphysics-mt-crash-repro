@@ -11,6 +11,17 @@ stage is parsed from multiple threads. Manifests as `SIGSEGV`,
 
 No external assets required — the stage is generated in-memory.
 
+This repo provides two equivalent reproducers:
+
+- **`test_usd_4002.py`** — the actual upstream regression tests from
+  [PR #4002](https://github.com/PixarAnimationStudios/OpenUSD/pull/4002)
+  (`test_rigidbody_collision_multithreading_parse`,
+  `test_custom_geometry_multithreading_parse`), adapted to run standalone with
+  plain `unittest`. These also assert *correctness* (collider count + deterministic
+  custom-token ordering), not just "doesn't crash". **Preferred.**
+- **`repro.py`** — a minimal hand-rolled loop (one rigid body + N mesh colliders),
+  handy for quick sweeps and tuning `COLLIDERS` / `N`.
+
 ## TL;DR
 
 | USD runtime                     | namespace                 | multithreaded | single-thread |
@@ -34,13 +45,15 @@ Kit (`omni.usd.libs`) nor into the `usd-exchange` 2.3.0 wheel.
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 
-# vulnerable: crashes
+# vulnerable: crashes (process dies before any assertion runs)
 pip install 'usd-core==25.11'
-python repro.py            # expect SIGSEGV / malloc corruption
+python -m unittest test_usd_4002 -v   # SIGSEGV / malloc corruption
+python repro.py                       # same, hand-rolled loop
 
 # fixed
 pip install 'usd-core==26.5'
-python repro.py            # expect "COMPLETED"
+python -m unittest test_usd_4002 -v   # OK
+python repro.py                       # COMPLETED
 
 # workaround on a vulnerable runtime: force single-threaded parsing
 PXR_WORK_THREAD_LIMIT=1 python repro.py   # clean
