@@ -27,9 +27,13 @@ This repo provides two equivalent reproducers:
 | USD runtime                     | namespace                 | multithreaded | single-thread |
 | ------------------------------- | ------------------------- | ------------- | ------------- |
 | `usd-core==25.11` (pip)         | `pxrInternal_v0_25_11`    | **CRASH 8/8** | clean         |
-| `usd-exchange==2.3.0` (pip)     | `pxrInternal_v0_25_5`     | **CRASH 12/12** | clean       |
+| `usd-exchange` 2.0.1 … 2.3.0     | `pxrInternal_v0_25_5`     | **CRASH (all)** | clean       |
 | Isaac Sim Kit `omni.usd.libs`   | `pxrInternal_v0_25_11`    | **CRASH 6/6** | clean         |
 | `usd-core==26.5` (pip)          | `pxrInternal_v0_26_5`     | clean (0/400) | clean         |
+
+Every released `usd-exchange` wheel (2.0.1, 2.1.0, 2.2.0, 2.2.1, 2.2.2, 2.3.0)
+bundles USD **25.5** and is **still vulnerable** — i.e. the PR #4002 backport has
+**not** landed in any shipping usd-exchange wheel as of this writing.
 
 The crash is fixed in **OpenUSD 26.05**
 ([PR #4002](https://github.com/PixarAnimationStudios/OpenUSD/pull/4002),
@@ -38,7 +42,7 @@ commit `060715faa77469b3f0e76fda4d1732f856570f88`,
 colliders beneath"*).
 
 The fix is **not** backported into the USD 25.x runtimes that ship with Isaac Sim
-Kit (`omni.usd.libs`) nor into the `usd-exchange` 2.3.0 wheel.
+Kit (`omni.usd.libs`) nor into any released `usd-exchange` wheel.
 
 ## Quick start
 
@@ -81,8 +85,15 @@ Example output:
 ```
 usd-core==25.11        USD 25.11   pass=0 crash=6 err=0 /6  -> VULNERABLE
 usd-core==26.5         USD 26.5    pass=6 crash=0 err=0 /6  -> OK (fixed)
+usd-exchange==2.0.1    USD 25.5    pass=0 crash=6 err=0 /6  -> VULNERABLE
+usd-exchange==2.2.2    USD 25.5    pass=0 crash=6 err=0 /6  -> VULNERABLE
 usd-exchange==2.3.0    USD 25.5    pass=0 crash=6 err=0 /6  -> VULNERABLE
 ```
+
+By default it sweeps several `usd-core` versions and **all stable `usd-exchange`
+releases** (2.0.1 … 2.3.0). NVIDIA vendors OpenUSD backports for non-Kit users via
+`usd-exchange`, so this is the place to confirm whether the PR #4002 backport has
+landed — as of this writing it has **not** (every wheel still crashes).
 
 To also test **Isaac Sim Kit's bundled `omni.usd.libs`** (the USD the sim actually
 loads at runtime), point the script at a python that can `from pxr import ...`

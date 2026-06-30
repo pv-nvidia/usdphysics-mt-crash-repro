@@ -22,7 +22,7 @@ set -u
 
 RUNS="${RUNS:-6}"
 USD_CORE_VERSIONS="${USD_CORE_VERSIONS:-25.5 25.8 25.11 26.3 26.5}"
-USDEX_VERSIONS="${USDEX_VERSIONS:-2.3.0}"
+USDEX_VERSIONS="${USDEX_VERSIONS:-2.0.1 2.1.0 2.2.0 2.2.1 2.2.2 2.3.0}"
 TEST="${TEST:-test_usd_4002}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
