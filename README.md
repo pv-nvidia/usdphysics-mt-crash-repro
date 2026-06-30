@@ -65,6 +65,37 @@ Or sweep both versions automatically:
 ./run.sh
 ```
 
+## Sweep across multiple USD runtimes
+
+`run_all_usd.sh` runs the PR #4002 tests against several USD runtimes (each pip
+runtime in its own throwaway venv) and prints a verdict table:
+
+```bash
+./run_all_usd.sh
+# or customize:
+RUNS=8 USD_CORE_VERSIONS="25.5 25.8 25.11 26.3 26.5" ./run_all_usd.sh
+```
+
+Example output:
+
+```
+usd-core==25.11        USD 25.11   pass=0 crash=6 err=0 /6  -> VULNERABLE
+usd-core==26.5         USD 26.5    pass=6 crash=0 err=0 /6  -> OK (fixed)
+usd-exchange==2.3.0    USD 25.5    pass=0 crash=6 err=0 /6  -> VULNERABLE
+```
+
+To also test **Isaac Sim Kit's bundled `omni.usd.libs`** (the USD the sim actually
+loads at runtime), point the script at a python that can `from pxr import ...`
+under Kit:
+
+```bash
+KIT_PYTHON=/path/to/isaac/python ./run_all_usd.sh
+```
+
+(In practice Kit's USD 25.11 is **VULNERABLE** too — measured 6/6 crash — which is
+why the fix has to land in `omni.usd.libs` / `omni.usdex.libs`, not just the pip
+wheels.)
+
 ## Knobs (env vars)
 
 - `N` — number of parse iterations per run (default `50`). More iterations = higher
